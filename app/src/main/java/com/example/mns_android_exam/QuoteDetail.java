@@ -19,9 +19,13 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.android.volley.toolbox.JsonObjectRequest;
+import org.json.JSONArray;
 import com.bumptech.glide.Glide;
 
 import org.jetbrains.annotations.NotNull;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -33,6 +37,15 @@ public class QuoteDetail extends AppCompatActivity {
     ImageView ivAnimePoster;
     Button btnSave;
     private FileOutputStream fileOutputStream;
+    String url;
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,20 +56,36 @@ public class QuoteDetail extends AppCompatActivity {
         btnSave = findViewById(R.id.btnSave);
 
         String animeQuoted = getIntent().getExtras().getString("animeQuoted");
-        Log.d("animeQuoted",animeQuoted);
+        String formattedAnimeQuoted = animeQuoted.replace(" ","%20");
 
-        Glide.with(this).load("https://cdn.myanimelist.net/images/anime/1806/126216l.jpg").into(ivAnimePoster);
+        Log.d("detail", "detail reached");
 
-        btnSave.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if(ContextCompat.checkSelfPermission(QuoteDetail.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED){
-                    saveImg();
-                }else {
-                    askPermission();
-                }
-            }
-        });
+        JsonObjectRequest request = new JsonObjectRequest(
+                "https://kitsu.io/api/edge/anime?filter[text]="+formattedAnimeQuoted+"&coverImage=tiny",
+                resultat -> {
+                    try {
+                        setUrl(resultat.getJSONArray("data").getJSONObject(1).getJSONObject("attributes").getJSONObject("posterImage").getString("medium"));
+                        Glide.with(this).load(getUrl()).into(ivAnimePoster);
+
+                        btnSave.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View view) {
+                                if(ContextCompat.checkSelfPermission(QuoteDetail.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED){
+                                    saveImg();
+                                }else {
+                                    askPermission();
+                                }
+                            }
+                        });
+
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                },
+                error -> error.printStackTrace()
+        );
+
+        RequestManager.getInstance(this).addToRequestQueue(request);
     }
 
     private void askPermission() {
@@ -68,6 +97,7 @@ public class QuoteDetail extends AppCompatActivity {
         if(requestCode == 100){
             if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
                 saveImg();
+                Toast.makeText(QuoteDetail.this,"Starting download",Toast.LENGTH_SHORT).show();
             }else{
                 Toast.makeText(QuoteDetail.this,"Please provide the required permissions",Toast.LENGTH_SHORT).show();
             }
